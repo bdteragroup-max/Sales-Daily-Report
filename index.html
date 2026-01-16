@@ -1,0 +1,824 @@
+<!doctype html>
+<html lang="th">
+
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <meta name="description" content="Sales Analytics Dashboard - ระบบวิเคราะห์ยอดขายและ KPI แบบ Real-time" />
+    <meta name="theme-color" content="#0f172a" />
+    <title>Sales Analytics Dashboard</title>
+
+    <link rel="preconnect" href="https://cdnjs.cloudflare.com" />
+    <link rel="stylesheet" href="./styles.css" />
+
+    <!-- Chart.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js" defer></script>
+
+    <!-- (Optional) Small inline helpers for layout only (ไม่ยุ่งกับ styles.css ก็ได้) -->
+    <style>
+        .container {
+            max-width: 1320px;
+            margin: 0 auto;
+        }
+
+        .headerBar {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-end;
+            gap: 14px;
+            flex-wrap: wrap;
+        }
+
+        .subhead {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            align-items: center;
+            margin-top: 6px;
+        }
+
+        .pill {
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+            padding: 6px 10px;
+            border: 1px solid #1f2a44;
+            border-radius: 999px;
+            background: #0b1220;
+            font-size: 12px;
+            color: #cbd5e1;
+        }
+
+        .pill b {
+            color: #e5e7eb;
+            font-weight: 700;
+        }
+
+        .sectionTitle {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+            margin: 16px 0 10px;
+        }
+
+        .sectionTitle h2 {
+            margin: 0;
+            font-size: 16px;
+        }
+
+        .sectionTitle .muted {
+            font-size: 12px;
+        }
+
+        @media (max-width: 980px) {
+            .twoColTop {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Executive summary panel */
+        .execPanel {
+            padding: 14px;
+        }
+
+        .execGrid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin-top: 10px;
+        }
+
+        @media (max-width: 980px) {
+            .execGrid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Run-rate KPIs row (ใต้กราฟ) */
+        .rrRow {
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+            margin-top: 12px;
+        }
+
+        .rrItem {
+            background: #0b1220;
+            border: 1px solid #1f2a44;
+            border-radius: 12px;
+            padding: 10px 12px;
+            min-width: 210px;
+        }
+
+        .rrItem .mini {
+            margin-bottom: 6px;
+        }
+
+        .rrItem b {
+            font-size: 14px;
+        }
+
+        /* Target section tidy */
+        .target-grid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(320px, 1fr));
+            gap: 12px;
+        }
+
+        @media (max-width: 980px) {
+            .target-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Accessibility helper */
+        .skip-link {
+            position: absolute;
+            left: -999px;
+            top: auto;
+            width: 1px;
+            height: 1px;
+            overflow: hidden;
+        }
+
+        .skip-link:focus {
+            left: 18px;
+            top: 18px;
+            width: auto;
+            height: auto;
+            padding: 10px 12px;
+            z-index: 9999;
+            background: #0b1220;
+            border: 1px solid #1f2a44;
+            border-radius: 10px;
+            color: #e5e7eb;
+        }
+    </style>
+</head>
+
+<body>
+    <a class="skip-link" href="#main">ข้ามไปยังเนื้อหาหลัก</a>
+
+    <div class="container">
+        <!-- Header -->
+        <header class="top" style="margin-bottom:12px;">
+            <div class="headerBar">
+                <div>
+                    <h1 style="margin:0;font-size:28px;">Sales Analytics</h1>
+                    <div class="muted">Data source: Sales Daily Report</div>
+
+                    <!-- Executive status pills -->
+                    <div class="subhead" aria-label="สถานะข้อมูล">
+                        <span class="pill">ช่วงข้อมูล: <b id="rangeText">-</b></span>
+                        <span class="pill">สถานะ: <b id="filterStatus">พร้อมใช้งาน</b></span>
+                        <span class="pill">อัปเดตล่าสุด: <b id="updatedAt">-</b></span>
+                        <span class="pill">Auto Refresh: <b>30s</b></span>
+                    </div>
+                </div>
+
+                <!-- (Optional) future actions (ไม่กระทบ JS เดิม) -->
+                <div class="muted" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;">
+                    <span class="badge">Executive View</span>
+                </div>
+            </div>
+        </header>
+
+        <!-- Top Row: Filters + Executive Snapshot -->
+        <div class="twoColTop">
+            <!-- Filters Panel (ID เดิมครบ) -->
+            <section class="panel" id="filterPanel" aria-label="ตัวกรองข้อมูล">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <div>
+                        <h2 class="h3">ตัวกรอง</h2>
+                        <div class="mini">เลือกช่วงวันที่ + กรองหัวหน้าทีม/กลุ่มสินค้า/รายบุคคล</div>
+                    </div>
+                    <div class="muted">
+                        <span>ช่วง: <b id="rangeText">-</b></span>
+                        &nbsp;|&nbsp;
+                        <span>สถานะ: <b id="filterStatus">พร้อมใช้งาน</b></span>
+                    </div>
+                </div>
+
+                <form class="filters" onsubmit="return false;">
+                    <div>
+                        <label for="f_days" class="mini">ช่วงเวลา (days)</label>
+                        <select id="f_days" name="days" aria-label="เลือกช่วงเวลา">
+                            <option value="7">ย้อนหลัง 7 วัน</option>
+                            <option value="30">ย้อนหลัง 30 วัน</option>
+                            <option value="60" selected>ย้อนหลัง 60 วัน</option>
+                            <option value="90">ย้อนหลัง 90 วัน</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="f_start" class="mini">หรือกำหนด Start</label>
+                        <input id="f_start" name="start" type="date" aria-label="วันที่เริ่มต้น" />
+                    </div>
+
+                    <div>
+                        <label for="f_end" class="mini">End</label>
+                        <input id="f_end" name="end" type="date" aria-label="วันที่สิ้นสุด" />
+                    </div>
+
+                    <div>
+                        <label for="f_team" class="mini">หัวหน้าทีม</label>
+                        <select id="f_team" name="teamlead" aria-label="เลือกหัวหน้าทีม">
+                            <option value="">(All)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="f_group" class="mini">กลุ่มสินค้า</label>
+                        <select id="f_group" name="group" aria-label="เลือกกลุ่มสินค้า">
+                            <option value="">(All)</option>
+                        </select>
+                    </div>
+
+                    <div>
+                        <label for="f_person" class="mini">รายบุคคล</label>
+                        <select id="f_person" name="person" aria-label="เลือกรายบุคคล">
+                            <option value="">(All)</option>
+                        </select>
+                    </div>
+
+                    <div style="justify-content:end;">
+                        <div class="mini">&nbsp;</div>
+                        <button id="btnApply" type="button" aria-label="ประมวลผลตัวกรอง">Apply</button>
+                    </div>
+
+                    <div style="justify-content:end;">
+                        <div class="mini">&nbsp;</div>
+                        <button id="btnReset" type="button" class="btn-secondary"
+                            aria-label="รีเซ็ตตัวกรอง">Reset</button>
+                    </div>
+
+                    <div style="justify-content:end;">
+                        <label for="ckAuto" class="mini">Auto Apply</label>
+                        <label class="mini checkbox-label">
+                            <input id="ckAuto" type="checkbox" checked aria-label="เปิดใช้งาน Auto Apply" />
+                            <span>เปลี่ยนแล้วโหลดทันที</span>
+                        </label>
+                    </div>
+                </form>
+
+                <div class="mini" style="margin-top:8px;">
+                    หมายเหตุ: ถ้าเลือก Start/End ระบบจะใช้ Start/End แทน days
+                </div>
+
+                <div class="sectionTitle">
+                    <h2>ยอดขายวันนี้</h2>
+                    <div class="muted">ภาพรวมสำหรับผู้บริหาร</div>
+                </div>
+
+                <!-- KPI Cards - Today's Performance (ID เดิม) -->
+                <div class="cards" style="margin:0;">
+                    <article class="card" aria-labelledby="kpi-sales">
+                        <div class="label" id="kpi-sales">ยอดขายวันนี้</div>
+                        <div class="value" id="k_sales" aria-live="polite">-</div>
+                    </article>
+                    <article class="card" aria-labelledby="kpi-calls">
+                        <div class="label" id="kpi-calls">โทรหาลูกค้าใหม่วันนี้</div>
+                        <div class="value" id="k_calls" aria-live="polite">-</div>
+                    </article>
+                    <article class="card" aria-labelledby="kpi-visits">
+                        <div class="label" id="kpi-visits">ลูกค้าที่เข้าพบวันนี้</div>
+                        <div class="value" id="k_visits" aria-live="polite">-</div>
+                    </article>
+                    <article class="card" aria-labelledby="kpi-quotes">
+                        <div class="label" id="kpi-quotes">ใบเสนอราคาวันนี้</div>
+                        <div class="value" id="k_quotes" aria-live="polite">-</div>
+                    </article>
+                </div>
+
+                <!-- Summary Panel - Period Totals (ID เดิม) -->
+                <div class="panel section" id="summaryPanel" style="margin-top:12px;" aria-labelledby="summary-title">
+                    <div class="summaryHeader">
+                        <div>
+                            <h2 class="summaryTitle" id="summary-title">ยอดสะสม</h2>
+                            <div class="summarySub">รวมจากข้อมูลตามตัวกรองที่เลือก</div>
+                        </div>
+                        <div class="muted" id="sumRangeText" aria-live="polite">-</div>
+                    </div>
+
+                    <div class="cards summaryCards" style="margin:10px 0 0;">
+                        <article class="card isMoney" aria-labelledby="sum-sales">
+                            <div class="label" id="sum-sales">ยอดขายสะสม</div>
+                            <div class="value" id="sum_sales" aria-live="polite">-</div>
+                        </article>
+
+                        <article class="card" aria-labelledby="sum-calls">
+                            <div class="label" id="sum-calls">โทรสะสม</div>
+                            <div class="value" id="sum_calls" aria-live="polite">-</div>
+                        </article>
+
+                        <article class="card" aria-labelledby="sum-visits">
+                            <div class="label" id="sum-visits">เข้าพบสะสม</div>
+                            <div class="value" id="sum_visits" aria-live="polite">-</div>
+                        </article>
+
+                        <article class="card" aria-labelledby="sum-quotes">
+                            <div class="label" id="sum-quotes">ใบเสนอราคาสะสม</div>
+                            <div class="value" id="sum_quotes" aria-live="polite">-</div>
+                        </article>
+                    </div>
+                </div>
+            </section>
+        </div>
+
+        <main id="main">
+            <!-- Main Grid: Chart & Employees -->
+            <div class="grid" style="margin-top:12px;">
+                <!-- Trend Chart & Top 5 Panel -->
+                <section class="panel" aria-labelledby="chart-title">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                        <h2 style="margin:0;" id="chart-title">แนวโน้ม (ช่วงที่เลือก)</h2>
+                        <div class="muted" id="chartStatus" aria-live="polite">Loading…</div>
+                    </div>
+
+                    <!-- Chart Toggles (ID เดิม + คงไว้) -->
+                    <div class="chartToggles">
+                        <div class="mini">เลือกข้อมูลที่จะแสดงบนกราฟ</div>
+                        <div class="right">
+                            <label class="mini">
+                                <input type="checkbox" id="ck_sales" checked aria-label="แสดงยอดขาย">
+                                <span>ยอดขาย</span>
+                            </label>
+                            <label class="mini">
+                                <input type="checkbox" id="ck_calls" checked aria-label="แสดงโทร">
+                                <span>โทร</span>
+                            </label>
+                            <label class="mini">
+                                <input type="checkbox" id="ck_visits" checked aria-label="แสดงเข้าพบ">
+                                <span>เข้าพบ</span>
+                            </label>
+                            <label class="mini">
+                                <input type="checkbox" id="ck_quotes" checked aria-label="แสดงใบเสนอราคา">
+                                <span>ใบเสนอราคา</span>
+                            </label>
+                            <label class="mini">
+                                <input type="checkbox" id="ck_target" aria-label="แสดงเป้าหมาย">
+                                <span>เป้าหมาย</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- Chart -->
+                    <div class="chartWrap">
+                        <canvas id="chart" role="img" aria-label="กราฟแสดงแนวโน้มยอดขายและกิจกรรม"></canvas>
+                    </div>
+
+                    <div class="muted" id="clickInfo" style="margin-top:12px;" aria-live="polite">
+                        คลิกที่จุดบนกราฟเพื่อดูรายละเอียด
+                    </div>
+
+                    <!-- (เพิ่ม) Run-rate / Pacing KPI placeholders: ไม่กระทบ JS เดิม -->
+                    <div class="rrRow" aria-label="Run-rate summary">
+                        <div class="rrItem">
+                            <div class="mini">เป้ารายเดือน</div>
+                            <b id="rr_target">-</b>
+                        </div>
+                        <div class="rrItem">
+                            <div class="mini">ยอดสะสมถึงวันนี้</div>
+                            <b id="rr_actual">-</b>
+                        </div>
+                        <div class="rrItem">
+                            <div class="mini">ควรทำได้ถึงวันนี้ (Cumulative Target)</div>
+                            <b id="rr_cumTarget">-</b>
+                        </div>
+                        <div class="rrItem">
+                            <div class="mini">เหลืออีก</div>
+                            <b id="rr_remaining">-</b>
+                        </div>
+                        <div class="rrItem">
+                            <div class="mini">ต้องทำเฉลี่ย/วัน (เพื่อทันเป้า)</div>
+                            <b id="rr_reqPerDay">-</b>
+                        </div>
+                        <div class="rrItem">
+                            <div class="mini">คาดการณ์สิ้นเดือน (Run-rate)</div>
+                            <b id="rr_projection">-</b>
+                        </div>
+                    </div>
+
+                    <!-- Target Info Card (คงไว้) -->
+                    <div id="targetInfo" style="display:none;margin-top:16px;"></div>
+
+                    <!-- Top 5 -->
+                    <article style="margin-top:24px;" aria-labelledby="top5-title">
+                        <div
+                            style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+                            <h3 style="margin:0;" id="top5-title">Top 5 ต่อทีม</h3>
+
+                            <!-- คง structure เดิม (class tab + data-metric) เพื่อให้ JS ทำงาน -->
+                            <nav class="tabs" id="metricTabs" role="tablist" aria-label="เลือกเมตริก Top 5">
+                                <button class="tab active" role="tab" data-metric="sales" aria-selected="true"
+                                    aria-controls="top5Wrap">ยอดขาย</button>
+                                <button class="tab" role="tab" data-metric="calls" aria-selected="false"
+                                    aria-controls="top5Wrap">โทร</button>
+                                <button class="tab" role="tab" data-metric="visits" aria-selected="false"
+                                    aria-controls="top5Wrap">เข้าพบ</button>
+                                <button class="tab" role="tab" data-metric="quotes" aria-selected="false"
+                                    aria-controls="top5Wrap">ใบเสนอราคา</button>
+                            </nav>
+                        </div>
+
+                        <div class="mini">Top 5 แยกตามหัวหน้าทีม (ตามช่วงที่เลือก + ตัวกรองที่เลือก)</div>
+                        <div id="top5Wrap" class="top5grid" role="tabpanel" aria-live="polite"></div>
+                    </article>
+
+                    <!-- Lag Analysis -->
+                    <article style="margin-top:24px;" aria-labelledby="lag-title">
+                        <div
+                            style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+                            <h3 style="margin:0;" id="lag-title">Lag ที่ดีที่สุด (Lead → ยอดขาย)</h3>
+                            <div class="muted" id="lagStatus" aria-live="polite">-</div>
+                        </div>
+                        <div class="mini">
+                            วัดความสัมพันธ์ (Pearson r) ระหว่าง “โทร / เข้าพบ / ใบเสนอราคา” กับยอดขาย โดยเลื่อนเวลา
+                            (Lag) ไปข้างหน้า
+                            เพื่อดูว่าโดยเฉลี่ยกิจกรรมวันนี้มักสะท้อนเป็นยอดขายในอีกกี่วัน
+                        </div>
+                        <div id="lagCards" class="lagGrid" style="margin-top:12px;"></div>
+                    </article>
+                </section>
+
+                <!-- Employees -->
+                <aside class="panel emp-panel" aria-labelledby="emp-title">
+                    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;">
+                        <h3 style="margin:0;" id="emp-title">พนักงานปัจจุบัน</h3>
+                        <div class="muted"><span id="empCount" aria-live="polite">-</span> คน</div>
+                    </div>
+                    <div class="tableWrap emp-table-wrap" style="max-height:520px;overflow:auto;margin-top:8px;">
+                        <table role="table" aria-label="รายชื่อพนักงาน">
+                            <thead>
+                                <tr>
+                                    <th scope="col">#</th>
+                                    <th scope="col">ชื่อ-นามสกุล</th>
+                                </tr>
+                            </thead>
+                            <tbody id="empBody"></tbody>
+                        </table>
+                    </div>
+                </aside>
+            </div>
+
+            <!-- Sales Target by Team (คงทั้งหมดไว้ แค่จัดโครงให้เป็นกริดเดียวอ่านง่ายขึ้น) -->
+            <section class="panel section" id="targetPanel" aria-labelledby="target-title">
+                <div class="panelHead mb16">
+                    <div>
+                        <h2 id="target-title">เป้ายอดขายรายทีม</h2>
+                        <div class="mini">รายชื่อและเป้ายอดขายของแต่ละทีม</div>
+                    </div>
+                </div>
+                <div class="target-grid">
+                    <!-- Team 1 -->
+                    <div class="target-card">
+                        <div class="target-header">
+                            <h3>ผจก.ยงค์ศักดิ์</h3>
+                            <div class="target-total">15,000,000 ฿</div>
+                        </div>
+                        <table class="target-table">
+                            <thead>
+                                <tr>
+                                    <th>ชื่อ</th>
+                                    <th>จังหวัด</th>
+                                    <th>ตำแหน่ง</th>
+                                    <th class="num">เป้าหมาย</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>นายอาบูบากัส ฮามีต</td>
+                                    <td>สำนักงานใหญ่</td>
+                                    <td>Sales</td>
+                                    <td class="num">3,750,000 ฿</td>
+                                </tr>
+                                <tr>
+                                    <td>นางสาวอ้อมเดือน รักษาสัตย์</td>
+                                    <td>สำนักงานใหญ่</td>
+                                    <td>Sales & Service</td>
+                                    <td class="num">3,750,000 ฿</td>
+                                </tr>
+                                <tr>
+                                    <td>ว่าง</td>
+                                    <td>สำนักงานใหญ่</td>
+                                    <td>Sales</td>
+                                    <td class="num">3,750,000 ฿</td>
+                                </tr>
+                                <tr>
+                                    <td>ว่าง</td>
+                                    <td>สำนักงานใหญ่</td>
+                                    <td>Sales</td>
+                                    <td class="num">3,750,000 ฿</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Team 2 -->
+                    <div class="target-card">
+                        <div class="target-header">
+                            <h3>คุณณัฎธินี</h3>
+                            <div class="target-total">10,000,000 ฿</div>
+                        </div>
+                        <table class="target-table">
+                            <thead>
+                                <tr>
+                                    <th>ชื่อ</th>
+                                    <th>จังหวัด</th>
+                                    <th>ตำแหน่ง</th>
+                                    <th class="num">เป้าหมาย</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>นางสาวอนุสรา จันทร์พวง</td>
+                                    <td>สำนักงานใหญ่</td>
+                                    <td>Sales</td>
+                                    <td class="num">2,500,000 ฿</td>
+                                </tr>
+                                <tr>
+                                    <td>นางสาวผกามาศ จันทร์เมือง</td>
+                                    <td>สำนักงานใหญ่</td>
+                                    <td>Sales & Service</td>
+                                    <td class="num">2,500,000 ฿</td>
+                                </tr>
+                                <tr>
+                                    <td>นายธนวัฒน์ สิริศรีเทียนทอง</td>
+                                    <td>สำนักงานใหญ่</td>
+                                    <td>Sales Engineer</td>
+                                    <td class="num">2,500,000 ฿</td>
+                                </tr>
+                                <tr>
+                                    <td>ว่าง</td>
+                                    <td>สำนักงานใหญ่</td>
+                                    <td>Sales</td>
+                                    <td class="num">2,500,000 ฿</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Team 3 -->
+                    <div class="target-card">
+                        <div class="target-header">
+                            <h3>ผจก.วายุรินทร์</h3>
+                            <div class="target-total">20,000,000 ฿</div>
+                        </div>
+                        <table class="target-table">
+                            <thead>
+                                <tr>
+                                    <th>ชื่อ</th>
+                                    <th>จังหวัด</th>
+                                    <th>ตำแหน่ง</th>
+                                    <th class="num">เป้าหมาย</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>นายกิตติพันธ์ กิตติจิระพงศ์</td>
+                                    <td>สำนักงานใหญ่</td>
+                                    <td>Sales</td>
+                                    <td class="num">10,000,000 ฿</td>
+                                </tr>
+                                <tr>
+                                    <td>ว่าง</td>
+                                    <td>สำนักงานใหญ่</td>
+                                    <td>Sales & Service</td>
+                                    <td class="num">10,000,000 ฿</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- สกลนคร -->
+                    <div class="target-card">
+                        <div class="target-header">
+                            <h3>สาขา สกลนคร</h3>
+                            <div class="target-total">5,000,000 ฿</div>
+                        </div>
+                        <table class="target-table">
+                            <thead>
+                                <tr>
+                                    <th>ชื่อ</th>
+                                    <th>จังหวัด</th>
+                                    <th>ตำแหน่ง</th>
+                                    <th class="num">เป้าหมาย</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>นายนิพนธ์ ฤทธิโชติไพศล</td>
+                                    <td>สกลนคร</td>
+                                    <td>ผู้จัดการ สาขา พังโคน</td>
+                                    <td class="num">1,000,000 ฿</td>
+                                </tr>
+                                <tr>
+                                    <td>นายปฐมพงค์ เลิศมงคลรัตนา</td>
+                                    <td>สกลนคร</td>
+                                    <td>Sales & service</td>
+                                    <td class="num">1,000,000 ฿</td>
+                                </tr>
+                                <tr>
+                                    <td>นางสาวจรรยพร กงซุย</td>
+                                    <td>สกลนคร</td>
+                                    <td>Sales Engineer</td>
+                                    <td class="num">1,000,000 ฿</td>
+                                </tr>
+                                <tr>
+                                    <td>นายฐานพัฒน์ บุตรชาดา</td>
+                                    <td>สกลนคร</td>
+                                    <td>Admin</td>
+                                    <td class="num">1,000,000 ฿</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- อุบล -->
+                    <div class="target-card">
+                        <div class="target-header">
+                            <h3>สาขา อุบลราชธานี</h3>
+                            <div class="target-total">2,000,000 ฿</div>
+                        </div>
+                        <table class="target-table">
+                            <thead>
+                                <tr>
+                                    <th>ชื่อ</th>
+                                    <th>จังหวัด</th>
+                                    <th>ตำแหน่ง</th>
+                                    <th class="num">เป้าหมาย</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>นายเมธี สมัครพงษ์</td>
+                                    <td>อุบลราชธานี</td>
+                                    <td>Sales</td>
+                                    <td class="num">2,000,000 ฿</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- ขอนแก่น -->
+                    <div class="target-card">
+                        <div class="target-header">
+                            <h3>สาขา ขอนแก่น</h3>
+                            <div class="target-total">2,000,000 ฿</div>
+                        </div>
+                        <table class="target-table">
+                            <thead>
+                                <tr>
+                                    <th>ชื่อ</th>
+                                    <th>จังหวัด</th>
+                                    <th>ตำแหน่ง</th>
+                                    <th class="num">เป้าหมาย</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>นายพชรพล ทองวิจารณ์</td>
+                                    <td>ขอนแก่น</td>
+                                    <td>Sales</td>
+                                    <td class="num">2,000,000 ฿</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- พิษณุโลก -->
+                    <div class="target-card">
+                        <div class="target-header">
+                            <h3>สาขา พิษณุโลก</h3>
+                            <div class="target-total">3,000,000 ฿</div>
+                        </div>
+                        <table class="target-table">
+                            <thead>
+                                <tr>
+                                    <th>ชื่อ</th>
+                                    <th>จังหวัด</th>
+                                    <th>ตำแหน่ง</th>
+                                    <th class="num">เป้าหมาย</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>นายอุดมทรัพย์ สุขโข</td>
+                                    <td>พิษณุโลก</td>
+                                    <td>Sales</td>
+                                    <td class="num">1,000,000 ฿</td>
+                                </tr>
+                                <tr>
+                                    <td>นายเขมวันต์ โพธิติ</td>
+                                    <td>พิษณุโลก</td>
+                                    <td>Admin</td>
+                                    <td class="num">1,000,000 ฿</td>
+                                </tr>
+                                <tr>
+                                    <td>นายรังสรรค์ ลามี</td>
+                                    <td>พิษณุโลก</td>
+                                    <td>ช่างไฟฟ้า สาขาพิษณุโลก</td>
+                                    <td class="num">1,000,000 ฿</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- ทีมส่วนกลาง -->
+                    <div class="target-card">
+                        <div class="target-header">
+                            <h3>ทีมส่วนกลาง</h3>
+                            <div class="target-total">60,000,000 ฿</div>
+                        </div>
+                        <table class="target-table">
+                            <thead>
+                                <tr>
+                                    <th>ชื่อ</th>
+                                    <th>จังหวัด</th>
+                                    <th>ตำแหน่ง</th>
+                                    <th class="num">เป้าหมาย</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>นางสาวมนต์ภัสร ปอกเพชร</td>
+                                    <td>สำนักงานใหญ่</td>
+                                    <td>Sales</td>
+                                    <td class="num">1,250,000 ฿</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="target-card">
+                        <div class="target-header">
+                            <h3>Talesale</h3>
+                            <div class="target-Numberofcalls">1,400 การโทร</div>
+                        </div>
+                        <table class="target-table">
+                            <thead>
+                                <tr>
+                                    <th>ชื่อ</th>
+                                    <th>จังหวัด</th>
+                                    <th>ตำแหน่ง</th>
+                                    <th class="num">เป้าหมาย</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>นางสาวกรกนภ โภคสวัสดิ์</td>
+                                    <td>สำนักงานใหญ่</td>
+                                    <td>Talesale</td>
+                                    <td class="num">1,400 การโทร</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div class="target-summary">
+                    <div class="target-summary-label">รวมเป้าหมายทั้งหมด:</div>
+                    <div class="target-summary-value">117,000,000 ฿</div>
+                </div>
+                <div class="target-summaryNumberofcalls">
+                    <div class="target-summaryNumberofcalls-label">รวมเป้าหมายการโทรทั้งหมด:</div>
+                    <div class="target-summaryNumberofcalls-value">16,800 การโทร</div>
+                </div>
+            </section>
+
+            <!-- Hidden Section for Person Totals (คงไว้เดิม) -->
+            <section class="panel section" id="personTotalsPanel" style="display:none;"
+                aria-labelledby="person-totals-title">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;">
+                    <div>
+                        <h2 style="margin:0;" id="person-totals-title">ยอดรวมรายบุคคล</h2>
+                        <div class="mini" id="personSummaryHint">แสดง Top รายบุคคล</div>
+                    </div>
+                    <div class="muted" id="personSummaryMeta" aria-live="polite">-</div>
+                </div>
+                <div class="tableWrap" style="margin-top:12px;">
+                    <table role="table" aria-label="ยอดรวมรายบุคคล">
+                        <thead>
+                            <tr>
+                                <th scope="col">#</th>
+                                <th scope="col">ชื่อ</th>
+                                <th scope="col" class="num">ยอดขาย</th>
+                                <th scope="col" class="num">โทร</th>
+                                <th scope="col" class="num">เข้าพบ</th>
+                                <th scope="col" class="num">ใบเสนอราคา</th>
+                            </tr>
+                        </thead>
+                        <tbody id="personTotalsBody"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <div class="sr-only" aria-live="assertive" aria-atomic="true" id="sr-announcements"></div>
+        </main>
+    </div>
+
+    <script src="./app.js"></script>
+</body>
+
+</html>
